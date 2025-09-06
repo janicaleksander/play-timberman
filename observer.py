@@ -1,28 +1,23 @@
 import os
 from multiprocessing import Process, Queue
-import keyboard
-import pyautogui
-import time
 import tkinter as tk
 from mss import mss
 import numpy as np
 import cv2
-import math
-def distance(p1, p2):
-    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+
+# CONST VALUES DESCRIBING POSITIONS ON THE SCREEN 2800x1800
 WINDOW_WIDTH = 2880
 WINDOW_HEIGHT = 1800
-#GAME_LOCATION = {"left": 1125, "top": 507, "width": 633, "height": 774}
-GAME_LOCATION = {"left": 1137, "top": 954, "width": 657, "height": 216}
 MIDDLE_TREE_X = 1422
-LEFT_SIDE =  {"left": 1140, "top": 892, "width": 199, "height": 150}
-RIGHT_SIDE = {"left": 1541, "top": 892, "width": 199, "height": 150}
-
-
+GAME_LOCATION = {"left": 1137, "top": 954, "width": 657, "height": 216}
+LEFT_SIDE =  {"left": 1140, "top": 850, "width": 199, "height": 200}
+RIGHT_SIDE = {"left": 1541, "top": 850, "width": 199, "height": 200}
 IS_LEFT_BRANCH = {"left":1130,"top":1135,"width":186,"height":65}
 IS_RIGHT_BRANCH = {"left":1547,"top":1135,"width":186,"height":65}
-
 GAME_OVER_LOCATION = {"left":1334,"top":503,"width":93,"height":169}
+TIME_LOCATION = {"left":1304,"top":462,"width":293,"height":14}
+
 class Position:
     def __init__(self,x,y,w,h,side):
         self.x = x
@@ -32,7 +27,6 @@ class Position:
         self.side = side
     def __str__(self):
         return f"x={self.x};y={self.y};side={self.side}"
-
 
 class Laser:
     def __init__(self,start_x,start_y,end_x,end_y=10):
@@ -48,10 +42,10 @@ class Observer:
     def __init__(self,q,data_q):
         self.q = q
         self.data_queue = data_q
-        self.face_color = (50, 194, 247) # GUY WITH YELLOW HELMET
-        # by pattern GUY WITH YELLO SUIT
+        self.face_color = (50, 194, 247) 
         self.frame_color =  (34, 113, 124)#140203
         self.game_over_color = (210,241,252)
+        self.time_color = (28, 11, 213)
         self.branch_color = [
             (196, 200, 91),  # #5BC8C4
             (168, 170, 73),  # #49AAA8
@@ -70,14 +64,6 @@ class Observer:
             (141, 138, 114),  # #728A8D
             (193, 194, 168),  # #A8C2C1
         ]
-        self.preload_template = []
-        for template in os.listdir("other"):
-            path = os.path.join("other",template)
-            img =cv2.imread(path)
-            if img is not None:
-                self.preload_template.append(img)
-
-
 
     def find_color_match(self,frame,color,transformation,tolerance):
         frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
@@ -97,22 +83,26 @@ class Observer:
             return Position(x,y,w,h,side)
         return None
 
-    def find_pattern(self,frame,transformation):
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        for template in self.preload_template:
-                res = cv2.matchTemplate(frame_bgr,template,cv2.TM_CCOEFF_NORMED)
-                _,max_val,_,max_loc = cv2.minMaxLoc(res)
-                x, y = max_loc
-                x,y = transformation(x,y)
-                if max_val>0.6:
-                    #print(f"TOP_LEFT: X={x}  Y={y}")
-                    if x < MIDDLE_TREE_X:
-                        return Position(x,y,10,10,0)
-                    if x >= MIDDLE_TREE_X:
-                        return Position(x,y,10,10,1)
-        return None
+    # If we want to find position by template matching.
+    # Here this is hard because of many types of branches and backgrounds
+    #def find_pattern(self,frame,transformation):
+    #    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+    #    for template in self.preload_template:
+    #            res = cv2.matchTemplate(frame_bgr,template,cv2.TM_CCOEFF_NORMED)
+    #            _,max_val,_,max_loc = cv2.minMaxLoc(res)
+    #            x, y = max_loc
+    #            x,y = transformation(x,y)
+    #            if max_val>0.6:
+    #                #print(f"TOP_LEFT: X={x}  Y={y}")
+    #                if x < MIDDLE_TREE_X:
+    #                    return Position(x,y,10,10,0)
+    #               if x >= MIDDLE_TREE_X:
+    #                    return Position(x,y,10,10,1)
+    #    return None
 
-    def draw_laser(self,head_x,head_y,frame,side:int):
+
+
+    def find_laser(self,head_x,head_y,frame,side:int):
         for color in self.branch_color:
             if side == 0:
                 p = self.find_color_match(frame,color,transform_left_side,tolerance=0)
@@ -124,7 +114,9 @@ class Observer:
                 if p is not None:
                     self.q.put(Laser(head_x, head_y, head_x, p.y))
                     return head_y - p.y
-        return float('inf')
+        return 1_000
+
+
 
 
 # 0 -> left
@@ -140,40 +132,52 @@ class Observer:
                 p = self.find_color_match(frame, color, transform_is_right_side, tolerance=0)
                 if p is not None:
                     return side
-
         return 2
 
     def is_game_over(self,frame):
         p = self.find_color_match(frame,self.game_over_color,transform_game_location,tolerance=0) # we dont have to get true x y
         return not p is None
+
+    def get_time_percentage(self,frame):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        lower = np.array([self.time_color])
+        upper = np.array((255,255,255))
+        mask = cv2.inRange(frame, lower, upper)
+        red_pixel = cv2.countNonZero(mask)
+        total_pixels = mask.shape[0]*mask.shape[1]
+        return red_pixel/total_pixels
+
+
     def process_screen(self):
         with mss() as sccp:
             character_pos = None
             branch_pos = None
             branch_distance = None
             while True:
-                frame = np.array(sccp.grab(GAME_LOCATION))
-                m = self.find_color_match(frame,self.face_color,transform_game_location,tolerance=0)
-                #m = self.find_pattern(frame,transform_game_location)
+                game_location_frame = np.array(sccp.grab(GAME_LOCATION))
+                m = self.find_color_match(game_location_frame,self.face_color,transform_game_location,tolerance=0)
+                is_game_over_frame = np.array(sccp.grab(GAME_OVER_LOCATION))
+                is_game_over = self.is_game_over(is_game_over_frame)
+                time_location_frame = np.array(sccp.grab(TIME_LOCATION))
+                time_percentage = self.get_time_percentage(time_location_frame)
                 if m is not None:
                     character_pos = m.side
-                    self.q.put(m)
+                    self.q.put(m) # sending data to APP
+
+                    # we have to check opposite side to character side to check
+                    # where we have branch on such lvl
+
                     if m.side == 0 : #left
-                        frame = np.array(sccp.grab(LEFT_SIDE))
-                        branch_distance =  self.draw_laser(m.x,m.y,frame,0)
-                        frame = np.array(sccp.grab(IS_RIGHT_BRANCH))
-                        branch_pos = self.is_branch_on_lvl(frame,1)
+                        left_side_frame = np.array(sccp.grab(LEFT_SIDE))
+                        branch_distance =  self.find_laser(m.x,m.y,left_side_frame,0)
+                        is_right_branch_frame = np.array(sccp.grab(IS_RIGHT_BRANCH))
+                        branch_pos = self.is_branch_on_lvl(is_right_branch_frame,1)
                     if m.side == 1: #right
-                        frame = np.array(sccp.grab(RIGHT_SIDE))
-                        branch_distance =self.draw_laser(m.x,m.y,frame,1)
-                        frame = np.array(sccp.grab(IS_LEFT_BRANCH))
-                        branch_pos = self.is_branch_on_lvl(frame,0)
-                self.data_queue.put([character_pos,branch_pos,branch_distance])
-                frame = np.array(sccp.grab(GAME_OVER_LOCATION))
-                print(self.is_game_over(frame))
-                time.sleep(0.1)
-
-
+                        right_side_frame = np.array(sccp.grab(RIGHT_SIDE))
+                        branch_distance =self.find_laser(m.x,m.y,right_side_frame,1)
+                        is_left_branch_frame= np.array(sccp.grab(IS_LEFT_BRANCH))
+                        branch_pos = self.is_branch_on_lvl(is_left_branch_frame,0)
+                    self.data_queue.put([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
 
 
 def center_window():
@@ -227,7 +231,7 @@ class App:
     def check_queue(self):# add match to types
         while not self.queue.empty():
             pos = self.queue.get()
-
+            # we are receiving data and draw head position and possibly laser to nearest branch
             match pos:
                 case Position():
                     if self.rect_id is None:
@@ -239,10 +243,7 @@ class App:
                         self.line_id = self.canvas.create_line(pos.start_x, pos.start_y, pos.end_x , pos.end_y, fill='red',width=2)
                     else:
                         self.canvas.coords(self.line_id, pos.start_x, pos.start_y, pos.end_x , pos.end_y)
-
-
-
-        self.root.after(1, self.check_queue)
+        self.root.after(0.1, self.check_queue)
 
 
     def check_data_queue(self):

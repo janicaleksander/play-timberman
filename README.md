@@ -29,12 +29,24 @@ The project consists of two integrated components:
 ## Scores
 
 HERE I NEED TO DESCRIBE ALGORITHM AND THE BEST SCORE
-## Installation
+## Warning
 
-Install my-project with npm
+The application was tested on a **2800 x 1800** screen.  
+Variables describing the positions of elements detected by OpenCV are fixed for this resolution.  
+If you want to run the project on your own screen, update these variables in `observer.py`.  
 
+
+# Installation
 ```bash
-  npm install my-project
-  cd my-project
+pip install -r requirements.txt
 ```
-    
+
+Running the AI model only
+```bash
+python3 play-timberman.py
+```
+Running the observer to see real-time data extraction
+```bash
+python3 observer.py
+```
+

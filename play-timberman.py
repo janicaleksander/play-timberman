@@ -47,7 +47,7 @@ class Game(Env):
                 return obs
 
         print("Warning: Observation timeout, returning default values")
-        return [0, 2, 1000, 0.0, False]
+        return [0, 2, 1000,False,0.0]
 
     def step(self, action):
         while not self.data_queue.empty():
@@ -159,7 +159,7 @@ if __name__ == '__main__':
             env=env,
             learning_rate=1e-3,
             buffer_size=100_000,
-            learning_starts=5000,
+            learning_starts=10_000,
             batch_size=64,
             gamma=0.99,
             train_freq=4,
@@ -168,9 +168,10 @@ if __name__ == '__main__':
             exploration_final_eps=0.01,
             policy_kwargs=policy_kwargs,
             verbose=1,
+            tensorboard_log="logs/"
         )
 
-        model.learn(total_timesteps=50_000)
+        model.learn(total_timesteps=100_000)
         model.save(f"models/timber_{time.time()}")
 
     finally:

@@ -177,7 +177,7 @@ class Observer:
                         branch_distance =self.find_laser(m.x,m.y,right_side_frame,1)
                         is_left_branch_frame= np.array(sccp.grab(IS_LEFT_BRANCH))
                         branch_pos = self.is_branch_on_lvl(is_left_branch_frame,0)
-                    self.data_queue.put([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
+                self.data_queue.put([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
 
 
 def center_window():

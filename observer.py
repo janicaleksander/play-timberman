@@ -10,6 +10,7 @@ import cv2
 WINDOW_WIDTH = 2880
 WINDOW_HEIGHT = 1800
 MIDDLE_TREE_X = 1422
+FULL_SCREEN = {"left":0,"top":0,"width":2800,"height":1800}
 GAME_LOCATION = {"left": 1137, "top": 954, "width": 657, "height": 216}
 LEFT_SIDE =  {"left": 1140, "top": 850, "width": 199, "height": 200}
 RIGHT_SIDE = {"left": 1541, "top": 850, "width": 199, "height": 200}
@@ -154,11 +155,17 @@ class Observer:
             branch_pos = None
             branch_distance = None
             while True:
-                game_location_frame = np.array(sccp.grab(GAME_LOCATION))
+                full_screen = np.array(sccp.grab(FULL_SCREEN))
+                x,y,w,h = GAME_LOCATION["left"],GAME_LOCATION["top"],GAME_LOCATION["width"],GAME_LOCATION["height"]
+                game_location_frame = full_screen[y:y+h,x:x+w]
                 m = self.find_color_match(game_location_frame,self.face_color,transform_game_location,tolerance=0)
-                is_game_over_frame = np.array(sccp.grab(GAME_OVER_LOCATION))
+
+                x,y,w,h = GAME_OVER_LOCATION["left"],GAME_OVER_LOCATION["top"],GAME_OVER_LOCATION["width"],GAME_OVER_LOCATION["height"]
+                is_game_over_frame = full_screen[y:y+h,x:x+w]
                 is_game_over = self.is_game_over(is_game_over_frame)
-                time_location_frame = np.array(sccp.grab(TIME_LOCATION))
+
+                x,y,w,h = TIME_LOCATION["left"],TIME_LOCATION["top"],TIME_LOCATION["width"],TIME_LOCATION["height"]
+                time_location_frame = full_screen[y:y+h,x:x+w]
                 time_percentage = self.get_time_percentage(time_location_frame)
                 if m is not None:
                     character_pos = m.side
@@ -168,16 +175,24 @@ class Observer:
                     # where we have branch on such lvl
 
                     if m.side == 0 : #left
-                        left_side_frame = np.array(sccp.grab(LEFT_SIDE))
+
+                        x, y, w, h = LEFT_SIDE["left"], LEFT_SIDE["top"], LEFT_SIDE["width"], LEFT_SIDE["height"]
+                        left_side_frame = full_screen[y:y+h,x:x+w]
                         branch_distance =  self.find_laser(m.x,m.y,left_side_frame,0)
-                        is_right_branch_frame = np.array(sccp.grab(IS_RIGHT_BRANCH))
+
+                        x, y, w, h = IS_RIGHT_BRANCH["left"], IS_RIGHT_BRANCH["top"], IS_RIGHT_BRANCH["width"], IS_RIGHT_BRANCH["height"]
+                        is_right_branch_frame = full_screen[y:y+h,x:x+w]
                         branch_pos = self.is_branch_on_lvl(is_right_branch_frame,1)
                     if m.side == 1: #right
-                        right_side_frame = np.array(sccp.grab(RIGHT_SIDE))
+                        x, y, w, h = RIGHT_SIDE["left"], RIGHT_SIDE["top"],RIGHT_SIDE["width"], RIGHT_SIDE["height"]
+                        right_side_frame = full_screen[y:y+h,x:x+w]
                         branch_distance =self.find_laser(m.x,m.y,right_side_frame,1)
-                        is_left_branch_frame= np.array(sccp.grab(IS_LEFT_BRANCH))
+
+                        x, y, w, h = IS_LEFT_BRANCH["left"], IS_LEFT_BRANCH["top"], IS_LEFT_BRANCH["width"], IS_LEFT_BRANCH["height"]
+                        is_left_branch_frame = full_screen[y:y+h,x:x+w]
                         branch_pos = self.is_branch_on_lvl(is_left_branch_frame,0)
                 self.data_queue.put([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
+                print([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
 
 
 def center_window():

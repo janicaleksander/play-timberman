@@ -29,12 +29,12 @@ class Game(Env):
         # 1 - go right
         self.action_space = Discrete(2)
 
-        # 1D vector with: [character_pos(0,1),branch_pos(0,1,2),branch_distance(0,inf),time]
+        # 1D vector with: [character_pos(0,1),branch_pos(0,1,2),branch_distance(0,inf)]
         self.observation_space = Box(
-            low=np.array([0, 0, 0, 0.0]),
-            high=np.array([1, 2, 1_000, 1.0]),
-            shape=(4,),
-            dtype=np.float64,
+            low=np.array([0, 0, 0]),
+            high=np.array([1, 2, 1_000]),
+            shape=(3,),
+            dtype=np.int64,
         )
 
     def _get_valid_observation(self):
@@ -88,15 +88,12 @@ class Game(Env):
             branch_side = 2
         if branch_distance is None:
             branch_distance = 1000
-        if time_percentage is None:
-            time_percentage = 0.0
 
         observation = np.array([
-            float(player_side),
-            float(branch_side),
-            float(min(branch_distance, 1000)),
-            float(time_percentage)
-        ], dtype=np.float64)
+            (player_side),
+            (branch_side),
+            (min(branch_distance, 1000)),
+        ], dtype=np.int64)
 
         info = {"score": self.total_score}
         return observation, reward, done, False, info
@@ -128,15 +125,12 @@ class Game(Env):
             branch_side = 2
         if branch_dist is None:
             branch_dist = 1000
-        if time_perc is None:
-            time_perc = 0.0
 
         observation = np.array([
-            float(player_side),
-            float(branch_side),
-            float(min(branch_dist, 1000)),
-            float(time_perc)
-        ], dtype=np.float64)
+            (player_side),
+            (branch_side),
+            (min(branch_dist, 1000)),
+        ], dtype=np.int64)
 
         info = {}
         return observation, info
@@ -184,7 +178,7 @@ if __name__ == '__main__':
             tensorboard_log="logs/"
         )
         #model.learn(total_timesteps=1_000_000, callback=ProgressCallback(check_freq=10_000))
-        model.learn(total_timesteps=10_000, callback=ProgressCallback(check_freq=1_000))
+        model.learn(total_timesteps=100_000, callback=ProgressCallback(check_freq=1_000))
         model.save(f"models/timber_{time.time()}")
 
     finally:

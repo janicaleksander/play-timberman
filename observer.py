@@ -5,7 +5,7 @@ from mss import mss
 import numpy as np
 import cv2
 
-
+import time
 # CONST VALUES DESCRIBING POSITIONS ON THE SCREEN 2800x1800
 WINDOW_WIDTH = 2880
 WINDOW_HEIGHT = 1800
@@ -14,8 +14,8 @@ FULL_SCREEN = {"left":0,"top":0,"width":2800,"height":1800}
 GAME_LOCATION = {"left": 1137, "top": 954, "width": 657, "height": 216}
 LEFT_SIDE =  {"left": 1140, "top": 850, "width": 199, "height": 200}
 RIGHT_SIDE = {"left": 1541, "top": 850, "width": 199, "height": 200}
-IS_LEFT_BRANCH = {"left":1170,"top":1142,"width":57,"height":46}
-IS_RIGHT_BRANCH = {"left":1545,"top":1142,"width":57,"height":46}
+IS_LEFT_BRANCH = {"left":1130,"top":1135,"width":186,"height":65}
+IS_RIGHT_BRANCH = {"left":1547,"top":1135,"width":186,"height":65}
 GAME_OVER_LOCATION = {"left":1334,"top":503,"width":93,"height":169}
 TIME_LOCATION = {"left":1304,"top":462,"width":293,"height":14}
 
@@ -41,12 +41,18 @@ class Laser:
 # 2  - no branch
 class Observer:
     def __init__(self,q,data_q):
+        self.last_cut_time = None
+        self.ignore_duration = 0.15
         self.q = q
         self.data_queue = data_q
         self.face_color = (50, 194, 247) 
         self.frame_color =  (34, 113, 124)#140203
         self.game_over_color = (210,241,252)
         self.time_color = (28, 11, 213)
+        self.preload_template = []
+        for asset in os.listdir("assets"):
+            path = os.path.join("assets",asset)
+            self.preload_template.append(cv2.imread(path))
         self.branch_color = [
             (196, 200, 91),  # #5BC8C4
             (168, 170, 73),  # #49AAA8
@@ -97,20 +103,20 @@ class Observer:
 
     # If we want to find position by template matching.
     # Here this is hard because of many types of branches and backgrounds
-    #def find_pattern(self,frame,transformation):
-    #    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-    #    for template in self.preload_template:
-    #            res = cv2.matchTemplate(frame_bgr,template,cv2.TM_CCOEFF_NORMED)
-    #            _,max_val,_,max_loc = cv2.minMaxLoc(res)
-    #            x, y = max_loc
-    #            x,y = transformation(x,y)
-    #            if max_val>0.6:
-    #                #print(f"TOP_LEFT: X={x}  Y={y}")
-    #                if x < MIDDLE_TREE_X:
-    #                    return Position(x,y,10,10,0)
-    #               if x >= MIDDLE_TREE_X:
-    #                    return Position(x,y,10,10,1)
-    #    return None
+    def find_pattern(self,frame,transformation):
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        for template in self.preload_template:
+                res = cv2.matchTemplate(frame_bgr,template,cv2.TM_CCOEFF_NORMED)
+                _,max_val,_,max_loc = cv2.minMaxLoc(res)
+                x, y = max_loc
+                x,y = transformation(x,y)
+                if max_val>0.6:
+                    #print(f"TOP_LEFT: X={x}  Y={y}")
+                    if x < MIDDLE_TREE_X:
+                        return Position(x,y,10,10,0)
+                    if x >= MIDDLE_TREE_X:
+                        return Position(x,y,10,10,1)
+        return None
 
 
 
@@ -167,44 +173,53 @@ class Observer:
             branch_distance = None
             while True:
                 full_screen = np.array(sccp.grab(FULL_SCREEN))
+
+                # --- detekcja postaci
                 x,y,w,h = GAME_LOCATION["left"],GAME_LOCATION["top"],GAME_LOCATION["width"],GAME_LOCATION["height"]
                 game_location_frame = full_screen[y:y+h,x:x+w]
                 m = self.find_color_match(game_location_frame,self.face_color,transform_game_location,tolerance=0)
 
+                # --- game over
                 x,y,w,h = GAME_OVER_LOCATION["left"],GAME_OVER_LOCATION["top"],GAME_OVER_LOCATION["width"],GAME_OVER_LOCATION["height"]
                 is_game_over_frame = full_screen[y:y+h,x:x+w]
                 is_game_over = self.is_game_over(is_game_over_frame)
 
+                # --- czas
                 x,y,w,h = TIME_LOCATION["left"],TIME_LOCATION["top"],TIME_LOCATION["width"],TIME_LOCATION["height"]
                 time_location_frame = full_screen[y:y+h,x:x+w]
                 time_percentage = self.get_time_percentage(time_location_frame)
+
                 if m is not None:
+                    # nowa pozycja postaci
+                    if m.side != character_pos:  
+                        # znaczy że nastąpiło uderzenie / zmiana strony
+                        self.last_cut_time = time.time()
+
                     character_pos = m.side
-                    self.q.put(m) # sending data to APP
+                    self.q.put(m)
 
-                    # we have to check opposite side to character side to check
-                    # where we have branch on such lvl
+                    # sprawdzaj gałęzie tylko gdy minęło trochę czasu od ostatniego ciosu
+                    if time.time() - self.last_cut_time > self.ignore_duration:
+                        if m.side == 0:  # left
+                            x, y, w, h = LEFT_SIDE["left"], LEFT_SIDE["top"], LEFT_SIDE["width"], LEFT_SIDE["height"]
+                            left_side_frame = full_screen[y:y+h,x:x+w]
+                            branch_distance = self.find_laser(m.x, m.y, left_side_frame, 0)
 
-                    if m.side == 0 : #left
+                            x, y, w, h = IS_RIGHT_BRANCH["left"], IS_RIGHT_BRANCH["top"], IS_RIGHT_BRANCH["width"], IS_RIGHT_BRANCH["height"]
+                            is_right_branch_frame = full_screen[y:y+h,x:x+w]
+                            branch_pos = self.is_branch_on_lvl(is_right_branch_frame, 1)
 
-                        x, y, w, h = LEFT_SIDE["left"], LEFT_SIDE["top"], LEFT_SIDE["width"], LEFT_SIDE["height"]
-                        left_side_frame = full_screen[y:y+h,x:x+w]
-                        branch_distance =  self.find_laser(m.x,m.y,left_side_frame,0)
+                        elif m.side == 1:  # right
+                            x, y, w, h = RIGHT_SIDE["left"], RIGHT_SIDE["top"], RIGHT_SIDE["width"], RIGHT_SIDE["height"]
+                            right_side_frame = full_screen[y:y+h,x:x+w]
+                            branch_distance = self.find_laser(m.x, m.y, right_side_frame, 1)
 
-                        x, y, w, h = IS_RIGHT_BRANCH["left"], IS_RIGHT_BRANCH["top"], IS_RIGHT_BRANCH["width"], IS_RIGHT_BRANCH["height"]
-                        is_right_branch_frame = full_screen[y:y+h,x:x+w]
-                        branch_pos = self.is_branch_on_lvl(is_right_branch_frame,1)
-                    if m.side == 1: #right
-                        x, y, w, h = RIGHT_SIDE["left"], RIGHT_SIDE["top"],RIGHT_SIDE["width"], RIGHT_SIDE["height"]
-                        right_side_frame = full_screen[y:y+h,x:x+w]
-                        branch_distance =self.find_laser(m.x,m.y,right_side_frame,1)
+                            x, y, w, h = IS_LEFT_BRANCH["left"], IS_LEFT_BRANCH["top"], IS_LEFT_BRANCH["width"], IS_LEFT_BRANCH["height"]
+                            is_left_branch_frame = full_screen[y:y+h,x:x+w]
+                            branch_pos = self.is_branch_on_lvl(is_left_branch_frame, 0)
 
-                        x, y, w, h = IS_LEFT_BRANCH["left"], IS_LEFT_BRANCH["top"], IS_LEFT_BRANCH["width"], IS_LEFT_BRANCH["height"]
-                        is_left_branch_frame = full_screen[y:y+h,x:x+w]
-                        branch_pos = self.is_branch_on_lvl(is_left_branch_frame,0)
-                self.data_queue.put([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
-                print([character_pos,branch_pos,branch_distance,is_game_over,time_percentage])
-
+                self.data_queue.put([character_pos, branch_pos, branch_distance, is_game_over, time_percentage])
+                print([character_pos, branch_pos, branch_distance, is_game_over])
 
 def center_window():
     return f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}"

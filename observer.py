@@ -14,8 +14,8 @@ FULL_SCREEN = {"left":0,"top":0,"width":2800,"height":1800}
 GAME_LOCATION = {"left": 1137, "top": 954, "width": 657, "height": 216}
 LEFT_SIDE =  {"left": 1140, "top": 850, "width": 199, "height": 200}
 RIGHT_SIDE = {"left": 1541, "top": 850, "width": 199, "height": 200}
-IS_LEFT_BRANCH = {"left":1130,"top":1135,"width":186,"height":65}
-IS_RIGHT_BRANCH = {"left":1547,"top":1135,"width":186,"height":65}
+IS_LEFT_BRANCH = {"left":1170,"top":1142,"width":57,"height":46}
+IS_RIGHT_BRANCH = {"left":1545,"top":1142,"width":57,"height":46}
 GAME_OVER_LOCATION = {"left":1334,"top":503,"width":93,"height":169}
 TIME_LOCATION = {"left":1304,"top":462,"width":293,"height":14}
 
@@ -64,6 +64,17 @@ class Observer:
             (41, 82, 204),  # #CC5229
             (141, 138, 114),  # #728A8D
             (193, 194, 168),  # #A8C2C1
+        ]
+        self.branch_stick_color = [
+             (48, 61, 127),
+            (63, 95, 162),
+             (126, 102, 104),
+             (70, 47, 51),
+             (37, 38, 105),
+             (71, 139, 241),
+             (168, 170, 73),
+             (134, 121, 98),
+             (106, 96, 78),
         ]
 
     def find_color_match(self,frame,color,transformation,tolerance):
@@ -124,7 +135,7 @@ class Observer:
 # 1 -> right
 # 2 -> no branch on this lvl
     def is_branch_on_lvl(self,frame,side): # side is the opposite of character side
-        for color in self.branch_color:
+        for color in self.branch_stick_color:
             if side == 0:
                 p = self.find_color_match(frame,color,transform_is_left_side,tolerance=0)
                 if p is not None:
@@ -258,7 +269,7 @@ class App:
                         self.line_id = self.canvas.create_line(pos.start_x, pos.start_y, pos.end_x , pos.end_y, fill='red',width=2)
                     else:
                         self.canvas.coords(self.line_id, pos.start_x, pos.start_y, pos.end_x , pos.end_y)
-        self.root.after(0.1, self.check_queue)
+            self.root.after(10, self.check_queue)
 
 
     def check_data_queue(self):

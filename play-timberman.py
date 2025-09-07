@@ -6,7 +6,9 @@ from gymnasium.spaces import Discrete, Box
 import time
 import numpy as np
 from stable_baselines3.dqn import DQN
+from stable_baselines3.ppo import PPO
 from observer import Observer
+from stable_baselines3.common.callbacks import BaseCallback
 
 import pydirectinput
 
@@ -63,7 +65,7 @@ class Game(Env):
 
         self.last_action_time = time.time()
 
-        time.sleep(0.16)
+        time.sleep(0.2)
 
         obs_data = self._get_valid_observation()
         player_side, branch_side, branch_distance, is_game_over, time_percentage = obs_data
@@ -71,11 +73,11 @@ class Game(Env):
         reward = 0
 
         if is_game_over:
-            reward -= 100  #
+            reward -= 15 #
             done = True
         else:
             reward += 2
-            reward -= 2 * (1 - time_percentage)
+           # reward -= 2 * (1 - time_percentage)
             done = False
 
         self.total_score += reward
@@ -139,6 +141,16 @@ class Game(Env):
         info = {}
         return observation, info
 
+class ProgressCallback(BaseCallback):
+    def __init__(self, check_freq: int = 10_000, verbose: int = 1):
+        super(ProgressCallback, self).__init__(verbose)
+        self.check_freq = check_freq
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.check_freq == 0:
+            print(f"{self.num_timesteps} steps")
+        return True
+
 
 if __name__ == '__main__':
     q1, data_queue = Queue(), Queue()
@@ -152,26 +164,27 @@ if __name__ == '__main__':
 
     try:
         policy_kwargs = dict(
-            net_arch=[256, 256],
+            net_arch=[128, 128],
         )
-        model = DQN(
+        model = PPO(
             policy="MlpPolicy",
             env=env,
-            learning_rate=1e-3,
-            buffer_size=100_000,
-            learning_starts=10_000,
+            learning_rate=3e-4,
+            n_steps=2048,
             batch_size=64,
+            n_epochs=10,
             gamma=0.99,
-            train_freq=4,
-            target_update_interval=1000,
-            exploration_fraction=0.1,
-            exploration_final_eps=0.01,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=0.01,
+            vf_coef=0.5,
+            max_grad_norm=0.5,
             policy_kwargs=policy_kwargs,
             verbose=1,
             tensorboard_log="logs/"
         )
-
-        model.learn(total_timesteps=100_000)
+        #model.learn(total_timesteps=1_000_000, callback=ProgressCallback(check_freq=10_000))
+        model.learn(total_timesteps=10_000, callback=ProgressCallback(check_freq=1_000))
         model.save(f"models/timber_{time.time()}")
 
     finally:

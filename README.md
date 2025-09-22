@@ -26,9 +26,7 @@ The project consists of two integrated components:
 - Accurate extraction of relevant gameplay data from the screen  
 - Custom environment built with OpenAI Gymnasium for training and testing  
 - Hyperparameter optimization for improved model training 
-## Scores
 
-HERE I NEED TO DESCRIBE ALGORITHM AND THE BEST SCORE
 ## Warning
 
 The application was tested on a **2800 x 1800** screen.  
